@@ -1,12 +1,10 @@
 import musicbrainzngs as mb
-import discogs_client
 
 mb.set_useragent('tagflac', '0.2', 'scurfielda@gmail.com')
-ds = discogs_client.Client('tagflac/0.2')
 
 
-TEST_ARTIST = 'wire'
-TEST_ALBUM = 'pink flag'
+TEST_ARTIST = 'the clash'
+TEST_ALBUM = 'london'
 
 
 def search_album_releases():
@@ -77,23 +75,20 @@ def menu_choice(release_list):
 
 
 def process_album(release_choice):
-    album_details = mb.get_release_by_id(release_choice[0], includes=['recordings', 'artist-credits', 'url-rels'])
-    print(album_details)
-    print(release_choice)
-    for url in album_details['release']['url-relation-list']:
-        if url['type'] == 'discogs':
-            discogs_info = ds.release(url['target'][32:])
-            for n in discogs_info.labels:
-                print(n)
+    album_details = mb.get_release_by_id(release_choice[0], includes=['recordings', 'artist-credits', 'labels'])
     track_list = {}
+    labels_list = []
+    catnos_list = []
+    print(album_details)
+    for label in album_details['release']['label-info-list']:
+        labels_list.append(label['label']['name'])
+        catnos_list.append(label['catalog-number'])
+    print(labels_list)
+    print(catnos_list)
     for disc in album_details['release']['medium-list']:
         print('Disc: {} of {}'.format(disc['position'], album_details['release']['medium-count']))
         for track in disc['track-list']:
             print('{} - {} - {}'.format(str(track['number']).zfill(2), track['recording']['title'], track['artist-credit-phrase']))
-    
-    pass
-
-    
 
 
 def main():
@@ -101,8 +96,6 @@ def main():
     final_choice = menu_choice(clean_results(result))
     process_album(final_choice)
     
-
-
 
 if __name__ == '__main__':
     main()
