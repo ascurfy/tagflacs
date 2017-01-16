@@ -1,15 +1,31 @@
+#!/usr/bin/env python3
+
+import argparse
 import musicbrainzngs as mb
 
-mb.set_useragent('tagflac', '0.2', 'scurfielda@gmail.com')
+mb.set_useragent('tagflac', '0.0.3', 'scurfielda@gmail.com')
 
 
-TEST_ARTIST = 'boards of canada'
-TEST_ALBUM = 'children'
+def get_arguments():
+    
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('--searchalbum')
+    parser.add_argument('--searchartist')
+    parser.add_argument('--filename')
+
+    args_dict = vars(parser.parse_args())
+
+    return args_dict
 
 
-def search_album_releases():
-    search_release = mb.search_releases(release=TEST_ALBUM, artist=TEST_ARTIST, strict=True)
+    
+def search_album_releases(args_dict):
+
+    search_release = mb.search_releases(release=args_dict['searchalbum'], artist=args_dict['searchartist'], strict=True)
+
     return search_release
+
 
 
 def clean_results(search_release):
@@ -58,10 +74,7 @@ def clean_results(search_release):
 
 
 def menu_choice(release_list):
-    print('{:^3}{:^25}{:^25}{:^25}{:^25}{:^20}{:^20}{:^20}'.format('', 'Artist',
-                                                                   'Album', 'Release Date',
-                                                                   'Record Label', 'Catalog Number',
-                                                                   'Format', 'Notes'))
+    
     for index, value in enumerate(release_list):
         print('{:^3}{:^25}{:^25}{:^25}{:^25}{:^20}{:^20}{:^20}'.format(index + 1, value[1],
                                                                        value[2], value[3],
@@ -70,28 +83,77 @@ def menu_choice(release_list):
 
     choice_int = int(input('Select release: ')) - 1
 
-    return release_list[choice_int]
+    album_details = mb.get_release_by_id(release_list[choice_int][0], includes=['recordings', 'artist-credits', 'labels'])
+
+    return album_details, release_list[choice_int]
         
 
 
-def process_album(release_choice):
-    album_details = mb.get_release_by_id(release_choice[0], includes=['recordings', 'artist-credits', 'labels'])
-    track_list = {}
-    print(album_details)
+#def process_album(release_choice):
+#    print(release_choice)
+#    album_details = mb.get_release_by_id(release_choice[0], includes=['recordings', 'artist-credits', 'labels'])
+#    tag_details = {'ALBUMARTIST': release_choice[1],
+#                   'ALBUM': release_choice[2],
+#                   'TRACKTOTAL': str(release_choice[6]).zfill(2),
+#                   'DATE': release_choice[9],
+#                   'DISCTOTAL': str(album_details['release']['medium-count']).zfill(2),
+#                   'DISCNUMBER': []
+#                   }
+#      
+#    track_list = {}
+#    #print(album_details)
+#    labels_set = {label['label']['name'] for label in album_details['release']['label-info-list']}
+#    catnos_set = {label['catalog-number'] for label in album_details['release']['label-info-list']}
+#    #print(labels_set)
+#    #print(catnos_set)
+#    for disc in album_details['release']['medium-list']:
+#        
+#    
+#    for disc in album_details['release']['medium-list']:
+#        tag_details['DISCNUMBER'].append([])
+#        print('Disc: {} of {}'.format(disc['position'], album_details['release']['medium-count']))
+#        tag_details['DISCNUMBER'][int(disc['position']) - 1].append([])
+#        for trackno, track in enumerate(disc['track-list']):
+#            print(trackno)
+#            
+#            tag_details['DISCNUMBER'][int(disc['position']) - 1][trackno].append({'TITLE': track['recording']['title']})
+#            tag_details['DISCNUMBER'][int(disc['position']) - 1][trackno]['ARTIST'] = track['artist-credit-phrase']
+#            print('{} - {} - {}'.format(str(track['number']).zfill(2), track['recording']['title'], track['artist-credit-phrase']))
+#    print(tag_details)
+
+def create_comment_tag(album_details, choice):
+    
     labels_set = {label['label']['name'] for label in album_details['release']['label-info-list']}
     catnos_set = {label['catalog-number'] for label in album_details['release']['label-info-list']}
-    print(labels_set)
-    print(catnos_set)
-    for disc in album_details['release']['medium-list']:
-        print('Disc: {} of {}'.format(disc['position'], album_details['release']['medium-count']))
-        for track in disc['track-list']:
-            print('{} - {} - {}'.format(str(track['number']).zfill(2), track['recording']['title'], track['artist-credit-phrase']))
+    
+    labels_list = list(labels_set)
+    label_str = ''
+    for index, label in enumerate(labels_list):
+        if index > 0:
+            label_str += ', ' + label
+        else:
+            label_str = label
+            
+    catnos_list = list(catnos_set)
+    catno_str = ''
+    for index, catno in enumerate(catnos_list):
+        if index > 0:
+            catno_str += ', ' + catno
+        else:
+            catno_str = catno  
+            
+    comment_str = '℗' + ' ' + choice[3] + ' - ' + label_str + ' - ' + catno_str
+    
+    return comment_str
 
+    
 
 def main():
-    result = search_album_releases()
-    final_choice = menu_choice(clean_results(result))
-    process_album(final_choice)
+    args_dict = get_arguments()
+    result = search_album_releases(args_dict)
+    final_choice, choice = menu_choice(clean_results(result))
+    create_comment_tag(final_choice, choice)
+    #process_album(final_choice)
     
 
 if __name__ == '__main__':
