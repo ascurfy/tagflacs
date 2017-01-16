@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
 
 import argparse
+import os
+import subprocess
+
 import musicbrainzngs as mb
 
-mb.set_useragent('tagflac', '0.0.3', 'scurfielda@gmail.com')
+# TODO - Work with more than 9 discs.
+# TODO - Add comments... lots of them.
+# TODO - Deal with strange user and musicbrainz input.
+
+mb.set_useragent('tagflac', '0.8.0', 'scurfielda@gmail.com')
 
 
 def get_arguments():
@@ -19,7 +26,6 @@ def get_arguments():
     return args_dict
 
 
-    
 def search_album_releases(args_dict):
 
     search_release = mb.search_releases(release=args_dict['searchalbum'], artist=args_dict['searchartist'], strict=True)
@@ -27,22 +33,37 @@ def search_album_releases(args_dict):
     return search_release
 
 
-
 def clean_results(search_release):
 
     release_list = []
     release_dates = []
     final_list = []
-
     for release in search_release['release-list']:
+        catnos_set = set()
+        catnos_str = ''
+        labels_set = set()
+        labels_str = ''
         release_details_list = []
+        try:
+            for label in release['label-info-list']:
+                try:
+                    catnos_set.add(label['catalog-number'])
+                    labels_set.add(label['label']['name'])
+                except KeyError:
+                    continue
+        except KeyError:
+            continue
+        for catno in catnos_set:
+            catnos_str += catno + ', '
+        for label in labels_set:
+            labels_str += label + ', '
         try:
             release_details_list.append(release['id'])
             release_details_list.append(release['artist-credit'][0]['artist']['name'])
             release_details_list.append(release['title'])
             release_details_list.append(release['date'][:4])
-            release_details_list.append(release['label-info-list'][0]['catalog-number'])
-            release_details_list.append(release['label-info-list'][0]['label']['name'])
+            release_details_list.append(catnos_str.strip(', '))
+            release_details_list.append(labels_str.strip(', '))
             release_details_list.append(release['medium-list'][0]['track-count'])
             if 'disambiguation' in release:
                 release_details_list.append(release['disambiguation'])
@@ -70,91 +91,98 @@ def clean_results(search_release):
 
     return final_list
         
-    
-
 
 def menu_choice(release_list):
     
     for index, value in enumerate(release_list):
-        print('{:^3}{:^25}{:^25}{:^25}{:^25}{:^20}{:^20}{:^20}'.format(index + 1, value[1],
-                                                                       value[2], value[3],
-                                                                       value[5], value[4],
-                                                                       value[8], value[7]))
+        print('---{}---'.format(index + 1))
+        print('Artist: {}'.format(value[1]))
+        print('Album: {}'.format(value[2]))
+        print('Release details: {} - {} - {} - {}'.format(value[8], value[3], value[5], value[4]))
+        print('Notes: {}'.format(value[7]))
+        
+        print()
 
     choice_int = int(input('Select release: ')) - 1
 
-    album_details = mb.get_release_by_id(release_list[choice_int][0], includes=['recordings', 'artist-credits', 'labels'])
+    album_details = mb.get_release_by_id(release_list[choice_int][0], includes=['recordings', 'artist-credits'])
 
-    return album_details, release_list[choice_int]
+    album_details['origdate'] = release_list[choice_int][-1]
+    album_details['all_labels'] = release_list[choice_int][5]
+    album_details['all_catnos'] = release_list[choice_int][4]
+
+    return album_details
         
 
+def tag_and_rename(album_details, args_dict):
 
-#def process_album(release_choice):
-#    print(release_choice)
-#    album_details = mb.get_release_by_id(release_choice[0], includes=['recordings', 'artist-credits', 'labels'])
-#    tag_details = {'ALBUMARTIST': release_choice[1],
-#                   'ALBUM': release_choice[2],
-#                   'TRACKTOTAL': str(release_choice[6]).zfill(2),
-#                   'DATE': release_choice[9],
-#                   'DISCTOTAL': str(album_details['release']['medium-count']).zfill(2),
-#                   'DISCNUMBER': []
-#                   }
-#      
-#    track_list = {}
-#    #print(album_details)
-#    labels_set = {label['label']['name'] for label in album_details['release']['label-info-list']}
-#    catnos_set = {label['catalog-number'] for label in album_details['release']['label-info-list']}
-#    #print(labels_set)
-#    #print(catnos_set)
-#    for disc in album_details['release']['medium-list']:
-#        
-#    
-#    for disc in album_details['release']['medium-list']:
-#        tag_details['DISCNUMBER'].append([])
-#        print('Disc: {} of {}'.format(disc['position'], album_details['release']['medium-count']))
-#        tag_details['DISCNUMBER'][int(disc['position']) - 1].append([])
-#        for trackno, track in enumerate(disc['track-list']):
-#            print(trackno)
-#            
-#            tag_details['DISCNUMBER'][int(disc['position']) - 1][trackno].append({'TITLE': track['recording']['title']})
-#            tag_details['DISCNUMBER'][int(disc['position']) - 1][trackno]['ARTIST'] = track['artist-credit-phrase']
-#            print('{} - {} - {}'.format(str(track['number']).zfill(2), track['recording']['title'], track['artist-credit-phrase']))
-#    print(tag_details)
+    trackno_index = str(args_dict['filename']).find('01')
 
-def create_comment_tag(album_details, choice):
-    
-    labels_set = {label['label']['name'] for label in album_details['release']['label-info-list']}
-    catnos_set = {label['catalog-number'] for label in album_details['release']['label-info-list']}
-    
-    labels_list = list(labels_set)
-    label_str = ''
-    for index, label in enumerate(labels_list):
-        if index > 0:
-            label_str += ', ' + label
-        else:
-            label_str = label
-            
-    catnos_list = list(catnos_set)
-    catno_str = ''
-    for index, catno in enumerate(catnos_list):
-        if index > 0:
-            catno_str += ', ' + catno
-        else:
-            catno_str = catno  
-            
-    comment_str = '℗' + ' ' + choice[3] + ' - ' + label_str + ' - ' + catno_str
-    
-    return comment_str
+    cwd_str = os.getcwd()
 
-    
+    for file in os.listdir('.'):
+        if file.startswith(args_dict['filename'][:8]) and file.endswith('.flac'):
+
+            flac_path = cwd_str + '/' + file
+
+            if file.rfind('disc') != -1:
+                discno = int(file[file.rfind('disc') + 4:file.rfind('disc') + 5])
+            else:
+                discno = 1
+
+            disc_details = album_details['release']['medium-list'][discno - 1]
+            trackno = str(file[trackno_index:trackno_index + 2]).zfill(2)
+            albumartist = album_details['release']['artist-credit-phrase']
+            album = album_details['release']['title']
+            date = album_details['origdate']
+            releasedate = album_details['release']['release-event-list'][0]['date'][:4]
+            labels = album_details['all_labels']
+            catnos = album_details['all_catnos']
+            tracktotal = str(disc_details['track-count']).zfill(2)
+            title = disc_details['track-list'][int(trackno) - 1]['recording']['title']
+            artist = disc_details['track-list'][int(trackno) - 1]['artist-credit-phrase']
+            disctotal = album_details['release']['medium-count']
+
+            subprocess.run(['metaflac', '--remove-all-tags', flac_path])
+            subprocess.run(['metaflac',
+                            '--set-tag=ALBUMARTIST=' + albumartist,
+                            '--set-tag=ALBUM=' + album,
+                            '--set-tag=DATE=' + date,
+                            '--set-tag=COMMENT=℗ {} - {} - {}'.format(releasedate, labels, catnos),
+                            '--set-tag=TRACKTOTAL=' + tracktotal,
+                            '--set-tag=TRACKNUMBER=' + trackno,
+                            '--set-tag=TITLE=' + title,
+                            '--set-tag=ARTIST=' + artist,
+                            flac_path])
+
+            if disctotal > 1:
+                subprocess.run(['metaflac',
+                                '--set-tag=DISCTOTAL=' + str(disctotal).zfill(2),
+                                '--set-tag=DISCNUMBER=' + str(discno).zfill(2),
+                                flac_path])
+                new_flacname_str = '{}_{}_{}-{}_{}-{}.flac'.format(albumartist.replace(' ', ''),
+                                                                   album.replace(' ', ''),
+                                                                   str(discno).zfill(2),
+                                                                   str(disctotal).zfill(2),
+                                                                   str(trackno).zfill(2),
+                                                                   str(tracktotal).zfill(2))
+            else:
+                new_flacname_str = '{}/{}_{}_{}-{}.flac'.format(cwd_str,
+                                                                albumartist.replace(' ', ''),
+                                                                album.replace(' ', ''),
+                                                                str(trackno).zfill(2),
+                                                                str(tracktotal).zfill(2))
+            os.rename(flac_path, new_flacname_str)
+
+            print(new_flacname_str)
+            subprocess.run(['metaflac', '--list', '--block-number=2', new_flacname_str])
+
 
 def main():
     args_dict = get_arguments()
     result = search_album_releases(args_dict)
-    final_choice, choice = menu_choice(clean_results(result))
-    create_comment_tag(final_choice, choice)
-    #process_album(final_choice)
-    
+    final_choice = menu_choice(clean_results(result))
+    tag_and_rename(final_choice, args_dict)
 
 if __name__ == '__main__':
     main()
