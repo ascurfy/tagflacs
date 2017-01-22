@@ -1,19 +1,47 @@
 #!/usr/bin/env python3
 
+'''
+Script to tag and rename flac files to my particular format.
+
+Works from the commandline.
+
+Requires musicbrainzngs module and metaflac.
+
+The files will be renamed to the following format:
+
+    albumartist_album_tracknumber-tracktotal.flac
+    albumartist_album_discnumber-disctotal_tracknumber-tracktotal.flac
+
+The following tags will be added:
+
+    ALBUM - The title of the album/single/EP.
+    ALBUMARTIST - The overall artist for the release.
+    DATE - The original release year. e.g. The Beatles, 1967 not 2009.
+    COMMENT - A summery of the source for the flac files in the format - ℗ release year | label/s | catalog number/s.
+    TRACKTOTAL - Number of tracks as a 2 digit number.
+    DISCTOTAL - Only on multidisc releases. As a 2 digit number.
+    DISCNUMBER - Only on multidisc releases. As a 2 digit number.
+    TRACKNUMBER - A 2 digit track number.
+    TITLE - Individual track title.
+    ARTIST - The performer on the individual track.
+    
+'''
+
+
 import argparse
 import os
 import subprocess
 
 import musicbrainzngs as mb
 
-# TODO - Work with more than 9 discs.
-# TODO - Add comments... lots of them.
-# TODO - Deal with strange user and musicbrainz input.
 
-mb.set_useragent('tagflac', '0.8.0', 'scurfielda@gmail.com')
+mb.set_useragent('tagflac', '0.9.0', 'scurfielda@gmail.com')
 
 
 def get_arguments():
+    '''
+    Get arguments from commandline and return a dictionary.
+    '''
     
     parser = argparse.ArgumentParser()
 
@@ -27,6 +55,7 @@ def get_arguments():
 
 
 def search_album_releases(args_dict):
+    ''' Search music brainz and return releases matching search criteria.'''
 
     search_release = mb.search_releases(release=args_dict['searchalbum'], artist=args_dict['searchartist'], strict=True)
 
@@ -34,6 +63,9 @@ def search_album_releases(args_dict):
 
 
 def clean_results(search_release):
+    '''
+    Gather required info from each release and returns a list of results.
+    '''
 
     release_list = []
     release_dates = []
@@ -77,7 +109,7 @@ def clean_results(search_release):
             continue
 
         release_list.append(release_details_list)
-
+    # Find the oldest release date from all the dates of all releases. Use this for the DATE tag.
     release_dates.sort()
 
     orig_date = release_dates[0]
@@ -93,7 +125,9 @@ def clean_results(search_release):
         
 
 def menu_choice(release_list):
-    
+    '''
+    Present a list of releases. Returns final choice.
+    '''
     for index, value in enumerate(release_list):
         print('---{}---'.format(index + 1))
         print('Artist: {}'.format(value[1]))
@@ -115,7 +149,9 @@ def menu_choice(release_list):
         
 
 def tag_and_rename(album_details, args_dict):
-
+    '''
+    Tags and renames each track.
+    '''
     trackno_index = str(args_dict['filename']).find('01')
 
     cwd_str = os.getcwd()
